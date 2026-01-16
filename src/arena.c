@@ -19,7 +19,10 @@ to reserve large arenas upfront and be able to reuse the memory more effectively
 The arena allocation needs to be thread safe and we use an atomic bitmap to allocate.
 -----------------------------------------------------------------------------*/
 
+#include <stdint.h>
+
 #include "mimalloc.h"
+#include "mimalloc/atomic.h"
 #include "mimalloc/internal.h"
 #include "mimalloc/prim.h"
 #include "bitmap.h"
@@ -1486,13 +1489,15 @@ bool mi_manage_memory(void* start, size_t size, bool is_committed, bool is_zero,
   return mi_manage_os_memory_ex2(_mi_subproc(), start, size, numa_node, exclusive, memid, commit_fun, commit_fun_arg, arena_id);
 }
 
+static _Atomic(uintptr_t) os_memory_addr = HEAP_ADDR_START;
 
 // Reserve a range of regular OS memory
 static int mi_reserve_os_memory_ex2(mi_subproc_t* subproc, size_t size, bool commit, bool allow_large, bool exclusive, mi_arena_id_t* arena_id) {
   if (arena_id != NULL) *arena_id = _mi_arena_id_none();
   size = _mi_align_up(size, MI_ARENA_SLICE_SIZE); // at least one slice
   mi_memid_t memid;
-  void* start = _mi_os_alloc_aligned(size, MI_ARENA_SLICE_ALIGN, commit, allow_large, &memid);
+  void *hint_addr = (void *)mi_atomic_add_relaxed(&os_memory_addr, size);
+  void* start = _mi_os_alloc_aligned_at(hint_addr, size, MI_ARENA_SLICE_ALIGN, commit, allow_large, &memid);
   if (start == NULL) return ENOMEM;
   if (!mi_manage_os_memory_ex2(subproc, start, size, -1 /* numa node */, exclusive, memid, NULL, NULL, arena_id)) {
     _mi_os_free_ex(start, size, commit, memid, NULL);

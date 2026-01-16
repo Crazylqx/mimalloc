@@ -401,6 +401,8 @@ mi_decl_export bool  mi_manage_memory(void* start, size_t size, bool is_committe
 //mi_decl_export bool  mi_theap_reload(mi_theap_t* theap, mi_arena_id_t arena);
 //mi_decl_export void  mi_theap_unload(mi_theap_t* theap);
 
+// heap memory is hint to be allocated at [HEAP_ADDR_START, ...)
+#define HEAP_ADDR_START 0x200000000000
 
 // ------------------------------------------------------
 // Deprecated
