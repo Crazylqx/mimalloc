@@ -27,6 +27,8 @@ The arena allocation needs to be thread safe and we use an atomic bitmap to allo
 #include "mimalloc/prim.h"
 #include "bitmap.h"
 
+static _Atomic(uintptr_t) os_memory_addr = HEAP_ADDR_START;
+
 /* -----------------------------------------------------------
   Arena id's
 ----------------------------------------------------------- */
@@ -506,7 +508,8 @@ static void* mi_arena_os_alloc_aligned(
     return _mi_os_alloc_aligned_at_offset(size, alignment, align_offset, commit, allow_large, memid);
   }
   else {
-    return _mi_os_alloc_aligned(size, alignment, commit, allow_large, memid);
+    void *hint_addr = (void *)mi_atomic_add_relaxed(&os_memory_addr, size);
+    return _mi_os_alloc_aligned_at(hint_addr, size, alignment, commit, allow_large, memid);
   }
 }
 
@@ -1488,8 +1491,6 @@ bool mi_manage_memory(void* start, size_t size, bool is_committed, bool is_zero,
   memid.is_pinned = is_pinned;
   return mi_manage_os_memory_ex2(_mi_subproc(), start, size, numa_node, exclusive, memid, commit_fun, commit_fun_arg, arena_id);
 }
-
-static _Atomic(uintptr_t) os_memory_addr = HEAP_ADDR_START;
 
 // Reserve a range of regular OS memory
 static int mi_reserve_os_memory_ex2(mi_subproc_t* subproc, size_t size, bool commit, bool allow_large, bool exclusive, mi_arena_id_t* arena_id) {
